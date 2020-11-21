@@ -65,7 +65,7 @@ static const struct MemmapEntry {
     [VIRT_FLASH] =       { 0x20000000,     0x4000000 },
     [VIRT_PCIE_ECAM] =   { 0x30000000,    0x10000000 },
     [VIRT_PCIE_MMIO] =   { 0x40000000,    0x40000000 },
-    [VIRT_DRAM] =        { 0x80000000,           0x0 },
+    [VIRT_DRAM] =        { 0x80000000,    0x20000000 },
 };
 
 #define VIRT_FLASH_SECTOR_SIZE (256 * KiB)
@@ -176,6 +176,17 @@ static void create_pcie_irq_map(void *fdt, char *nodename,
                            0x1800, 0, 0, 0x7);
 }
 
+static bool numa_enabled(const MachineState *ms)
+{
+    return (ms->numa_state && ms->numa_state->num_nodes) ? true : false;
+}
+
+static int linux_riscv_socket_count(const MachineState *ms)
+{
+    printf("actual: %d, force to 1\n", (numa_enabled(ms)) ? ms->numa_state->num_nodes : 1);
+    return 1;
+}
+
 static void create_fdt(RISCVVirtState *s, const struct MemmapEntry *memmap,
     uint64_t mem_size, const char *cmdline)
 {
@@ -229,7 +240,8 @@ static void create_fdt(RISCVVirtState *s, const struct MemmapEntry *memmap,
     qemu_fdt_setprop_cell(fdt, "/cpus", "#address-cells", 0x1);
     qemu_fdt_add_subnode(fdt, "/cpus/cpu-map");
 
-    for (socket = (riscv_socket_count(mc) - 1); socket >= 0; socket--) {
+    printf("cpu count is %d\n", linux_riscv_socket_count(mc));
+    for (socket = (linux_riscv_socket_count(mc) - 1); socket >= 0; socket--) {
         clust_name = g_strdup_printf("/cpus/cpu-map/cluster%d", socket);
         qemu_fdt_add_subnode(fdt, clust_name);
 
@@ -288,6 +300,8 @@ static void create_fdt(RISCVVirtState *s, const struct MemmapEntry *memmap,
 
         addr = memmap[VIRT_DRAM].base + riscv_socket_mem_offset(mc, socket);
         size = riscv_socket_mem_size(mc, socket);
+	printf("memory size: 0x%lx\n", size);
+	size = 256 * MiB;
         mem_name = g_strdup_printf("/memory@%lx", (long)addr);
         qemu_fdt_add_subnode(fdt, mem_name);
         qemu_fdt_setprop_cells(fdt, mem_name, "reg",
@@ -332,7 +346,7 @@ static void create_fdt(RISCVVirtState *s, const struct MemmapEntry *memmap,
         g_free(clust_name);
     }
 
-    for (socket = 0; socket < riscv_socket_count(mc); socket++) {
+    for (socket = 0; socket < linux_riscv_socket_count(mc); socket++) {
         if (socket == 0) {
             plic_mmio_phandle = plic_phandle[socket];
             plic_virtio_phandle = plic_phandle[socket];
