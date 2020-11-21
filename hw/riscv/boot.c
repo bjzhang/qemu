@@ -172,7 +172,9 @@ hwaddr riscv_load_initrd(const char *filename, uint64_t mem_size,
      * halfway into RAM, and for boards with 256MB of RAM or more we put
      * the initrd at 128MB.
      */
-    *start = kernel_entry + MIN(mem_size / 2, 128 * MiB);
+//    *start = kernel_entry + MIN(mem_size / 2, 128 * MiB);
+    *start = kernel_entry + 256 * MiB;
+    printf("initrd start address 0x%lx\n", *start);
 
     size = load_ramdisk(filename, *start, mem_size - *start);
     if (size == -1) {
